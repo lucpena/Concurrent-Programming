@@ -53,13 +53,13 @@ void* reader(void *arg) {
 	int i = *((int *) arg);
 
 	while(TRUE) {               
-        pthread_mutex_lock(&turno); 
-        pthread_mutex_lock(&mutex);    
-            rc = rc + 1;            
-            if (rc == 1) {          
-                pthread_mutex_lock(&db);   
-            }
-        pthread_mutex_unlock(&mutex);
+        pthread_mutex_lock(&turno);             // &turno -> Regula orderm de acesso
+            pthread_mutex_lock(&mutex);         // &mutex -> Acesso às variáveis compartilhadas
+                rc = rc + 1;            
+                if (rc == 1) {          
+                    pthread_mutex_lock(&db);   // &db -> Acesso excluivo aos dados
+                }
+            pthread_mutex_unlock(&mutex);
         pthread_mutex_unlock(&turno); 
 
         read_data_base(i);       
@@ -71,7 +71,7 @@ void* reader(void *arg) {
             }
         pthread_mutex_unlock(&mutex);
 
-        use_data_read(i);        // região não crítica
+        use_data_read(i);               // região não crítica
 	}
 
     pthread_exit(0);
