@@ -61,7 +61,6 @@ void *macacoBA(void *id)
                 if(passandoPelaCordaBA == 1)
                     pthread_mutex_lock(&corda);     // Acessando a corda
 
-
             pthread_mutex_unlock(&BA);
         pthread_mutex_unlock(&vez);
 
