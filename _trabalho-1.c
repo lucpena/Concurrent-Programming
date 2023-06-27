@@ -1,95 +1,127 @@
+/*
+
+    Trabalho 1 de Programacao Concorrente
+
+    Aluno: Lucas Araujo Pena
+    Matricula: 130056162
+
+    Descricao: O problema proposto para ser resolvido neste trabalho se baseia na
+    ideia de um trem que visita estacoes, pegando novos passageiros e deixando
+    outros. Ele ira ate a ultima estacao, e depois voltar visitando todas as
+    estacoes ate o comeco. Em cada estacao sera deixada um numero aleatorio de
+    passageiros, e cada estacao comeca com um numero determinado de passageiro,
+    mas nenhum novo passageiro ira chegar nestas estacoes alem do numero especi-
+    ficado. Caso as estacoes estejam vazias, o trem ira continuar sua viagem para
+    a proxima indefinidadmente.
+
+    O programa utiliza uma thread para o trem e outra tread que gerencia as
+    estacoes.
+
+    Como usar: O programa foi desenvolvido em ambiente Linux Mint (Ubuntu) e
+    compildao utilizando o GCC com o seguinte comando:
+
+            gcc -pthread _trabalho-1.c -o t
+
+    E compilado com: 
+            
+            ./t
+
+    
+
+*/
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <pthread.h>
 #include <unistd.h>
 
-#define NUM_STATIONS 4
-#define MAX_CAPACITY 10
-#define STATION 20 //+ (rand() % 50)
+#define NUM_STATIONS 4                  // Numero de estacoes
+#define MAX_CAPACITY 25                 // Capacidade maxima do trem
+#define STATION 40// + (rand() % 50)      // Numero de passageiros na estacao
 
 pthread_mutex_t train_mutex;            // Mutex para a sincronização do trem
 pthread_mutex_t train_current_station;  // Mutex para a sincronização do trem
-pthread_mutex_t station_mutex;          // Mutex para a sincronização do trem
 
 pthread_cond_t train_capacity_cv;       // Variável de condição para a capacidade
 pthread_cond_t train_travel_cv;         // Condition variable for train travel
 
-int train_capacity = 0;
-int random_number = 0;
-int current_station = 0;
+int train_capacity = 0;                 // Numero de passageiros dentro do trem           
+int current_station = 0;                // Estacao em que o trem se encontra
 
+// Array onde contem o numero de passageiros em cada estacao: 
+// Exemplo: station_waiting[0] == Passageiros na est. 0
 int station_waiting[NUM_STATIONS];
 
+// Thread que gerencia o trem
 void *train_thread(void *arg)
 {
     int direction = 1;
 
     while (1)
     {
-        // Travel from the first to the last station
         pthread_mutex_lock(&train_mutex);
 
-        printf("\n\n\tO Trem chegou na estacao %d com %d passageiros.\n\n", current_station, train_capacity);
+        printf("\nO Trem chegou na estacao [[  %d  ]]", current_station);
+        if(station_waiting[current_station] == 0 ) printf(" ( VAZIA )");
+        printf("\nAssentos vagos: %d\nPassageiros no trem: %d\n", MAX_CAPACITY - train_capacity, train_capacity);
+        printf("---------------------------------------------\n");
 
-        // Wait until the train is at capacity
-        while (train_capacity < MAX_CAPACITY)
+        // Espera ate o trem estiver cheio ou a estacao estiver vazia
+        while (train_capacity < MAX_CAPACITY && station_waiting[current_station] > 0)
         {
             pthread_cond_wait(&train_capacity_cv, &train_mutex);
         }
 
         // Viajando
-        printf("\nO trem esta indo para a proxima estacao...\n");
-        sleep(1);
+        printf("\n\nO trem esta indo para a proxima estacao...\n\n");
+        sleep(2);
+        printf("---------------------------------------------");
 
-        // Unload passengers
-        train_capacity -= (rand() % 5) + 5;
+        // Passageiros descendo
+        train_capacity -= (rand() % (train_capacity + 1));
 
-        // Update current station and direction
+        // Define a direcao do trem
         if (current_station == 0 && direction == -1)
             direction = 1;
         else if (current_station == NUM_STATIONS - 1 && direction == 1)
             direction = -1;
 
+        // Altera a direcao do trem
         pthread_mutex_lock(&train_current_station);
         current_station += direction;
         pthread_mutex_unlock(&train_current_station);
 
-        // Signal the station thread to continue
+        // Sinal para a thread das estacoes
         pthread_cond_signal(&train_travel_cv);
         pthread_mutex_unlock(&train_mutex);
     }
 }
 
-// Function executed by the station threads
+// Funcao que gerencia as estacoes
 void *station_thread(void *arg)
 {
     while (1)
     {
         pthread_mutex_lock(&train_mutex);
 
-        pthread_mutex_lock(&train_current_station);
-        int this_current_station = current_station;
-        pthread_mutex_unlock(&train_current_station);
-
-        // Wait until the train is at the station
-        printf("\nGeneral Kenobi\n");
+        // Espera o trem chegar na estacao
         while (train_capacity == MAX_CAPACITY)
         {
             pthread_cond_wait(&train_travel_cv, &train_mutex);
-        }
+        }         
 
-
-
-        if (station_waiting[this_current_station] != 0)
+        // Passageiros embarcando e desembarcando
+        if (station_waiting[current_station] != 0)
         {
-            printf("\tPessoas na estação %d: %d\n", current_station, station_waiting[this_current_station]);
-            printf("\tPessoas no Trem: %d\n", train_capacity);
+            printf("\tPessoas na estacao %d: %d\n", current_station, station_waiting[current_station]);
             train_capacity++;
-            station_waiting[this_current_station]--;
+            station_waiting[current_station]--;
+            printf("\tPessoas no Trem: %d\n", train_capacity);
+            usleep( 200000 );
         }
 
-        // If the train reaches maximum capacity, signal it
-        if (train_capacity == MAX_CAPACITY || station_waiting[this_current_station] == 0)
+        // Se o trem ficar cheio ou se a estacao estiver vazia, prossegue 
+        if (train_capacity == MAX_CAPACITY || station_waiting[current_station] == 0)
         {
             pthread_cond_signal(&train_capacity_cv);
         }
@@ -107,7 +139,6 @@ int main()
     // Inicializacao dos mutex
     pthread_mutex_init(&train_mutex, NULL);
     pthread_mutex_init(&train_current_station, NULL);
-    pthread_mutex_init(&station_mutex, NULL);
 
     pthread_cond_init(&train_capacity_cv, NULL);
     pthread_cond_init(&train_travel_cv, NULL);
@@ -124,8 +155,7 @@ int main()
     pthread_create(&station_tid, NULL, station_thread, NULL);
     
     pthread_join(train_tid, NULL);
-    pthread_join(station_tid, NULL);
-    
+    pthread_join(station_tid, NULL);    
 
     return 0;
 }
